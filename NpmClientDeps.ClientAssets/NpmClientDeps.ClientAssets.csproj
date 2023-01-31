@@ -1,0 +1,22 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net7.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.ClientAssets" Version="0.1.0-alpha.21528.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Files in assets shouldn't be included in build or publish output -->
+    <Content Update="assets/**/*.*" CopyToOutputDirectory="Never" CopyToPublishDirectory="Never" />
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute" Condition="'$(IntermediateOutputPath)' != ''">
+      <_Parameter1>ClientAssetsDirectory</_Parameter1>
+      <_Parameter2>$(IntermediateOutputPath)clientassets/</_Parameter2>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,20 @@
+{
+  "type": "module",
+  "version": "1.0.0",
+  "name": "npmclientdeps",
+  "private": true,
+  "dependencies": {
+    "bootstrap": "^5.2.3",
+    "jquery": "^3.6.3",
+    "jquery-validation": "^1.19.5",
+    "jquery-validation-unobtrusive": "^4.0.0"
+  },
+  "devDependencies": {
+    
+  },
+  "scripts": {
+    "copyclientlibs": "node ./copy-client-libs.js",
+    "build:Debug": "npm run copyclientlibs",
+    "build:Release": "npm run copyclientlibs"
+  }
+}
