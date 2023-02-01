@@ -93,4 +93,83 @@ Cons:
 
 ### Example 4: NpmClientDeps.ClientAssets
 
-TODO
+The [NpmClientDeps.ClientAssets](./NpmClientDeps.ClientAssets) project expands on the NpmClientDeps project by utilizing the experimental [Microsoft.AspNetCore.ClientAssets](https://www.nuget.org/packages/Microsoft.AspNetCore.ClientAssets) package to link the npm scripts-based client assets build pipeline with the MSBuild.
+
+In this project, the source files for the client assets build pipeline are in the [assets](./NpmClientDeps.ClientAssets/assets/) sub-directory, including the npm *package.json* file and *copy-client-libs.js* script. The key difference is that the script is automatically run as part of the project's regular MSBuild-based build. The [Microsoft.AspNetCore.ClientAssets](https://www.nuget.org/packages/Microsoft.AspNetCore.ClientAssets) package properly tracks inputs and outputs of the npm-based build process to ensure properly incrementality (i.e. the npm script is only invoked when its inputs change, thus avoiding incurring that cost on every build). See [this blog post](https://devblogs.microsoft.com/dotnet/build-client-web-assets-for-your-razor-class-library/) for more details on how the *Microsoft.AspNetCore.ClientAssets* works.
+
+This approach shows promise but required some extra effort to make it work well:
+
+The content of the *assets* directory is still included in the application output by default but likely shouldn't be, as it's not required at runtime. Additionally, the files produced by the npm build pipeline (in this case, our client library files), are not correctly served during development (i.e. when launching from Visual Studio/`dotnet run`), as they're not actually copied to the *wwwroot* directory, but rather added as linked files (they **are** copied to the publish output correctly). The fix these issues, updates to the project file were made (see below) along with code to add the client assets intermediate output directory to the `WebRootFileProvider`. Both of these should likely be done by default when using the package:
+
+*NpmClientDeps.ClientAssets.csproj*:
+
+```xml
+<ItemGroup>
+    <!-- Files in assets shouldn't be included in build or publish output -->
+    <Content Update="assets/**/*.*" CopyToOutputDirectory="Never" CopyToPublishDirectory="Never" />
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute" Condition="'$(IntermediateOutputPath)' != ''">
+    <_Parameter1>ClientAssetsDirectory</_Parameter1>
+    <_Parameter2>$(IntermediateOutputPath)clientassets/</_Parameter2>
+    </AssemblyAttribute>
+</ItemGroup>
+```
+
+*Program.cs*:
+
+```csharp
+if (builder.Environment.IsDevelopment())
+{
+    builder.WebHost.UseClientAssets();
+}
+```
+
+*ClientAssetsExtensions.cs*:
+
+```csharp
+public static class ClientAssetsExtensions
+{
+    private const string ClientAssetsDirectoryKey = "ClientAssetsDirectory";
+
+    /// <summary>
+    /// Configures the <see cref="IWebHostEnvironment.WebRootFileProvider"/> to use client assets from the intermediate output
+    /// directory built by npm.
+    /// </summary>
+    /// <param name="builder">The <see cref="IWebHostBuilder"/>.</param>
+    public static void UseClientAssets(this IWebHostBuilder builder)
+    {
+        builder.ConfigureAppConfiguration((context, configBuilder) =>
+        {
+            // Enable serving static files from the Microsoft.AspNetCore.ClientAssets intermedite output dir
+            var webHostEnvironment = context.HostingEnvironment;
+            var infoVerAttr = typeof(Program).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>()
+                .FirstOrDefault(a => string.Equals(a.Key, ClientAssetsDirectoryKey, StringComparison.OrdinalIgnoreCase));
+            if (infoVerAttr is not null && Directory.Exists(infoVerAttr.Value))
+            {
+                var clientAssetsOutputDir = new PhysicalFileProvider(Path.Combine(webHostEnvironment.ContentRootPath, infoVerAttr.Value));
+                webHostEnvironment.WebRootFileProvider = new CompositeFileProvider(new[] { clientAssetsOutputDir, webHostEnvironment.WebRootFileProvider });
+            }
+        });
+    }
+}
+```
+
+The linked *wwwroot* files **are** actually included in the project's **staticwebassets.runtime.json** file when built, but they're mapped to the wrong content root directory (the scoped CSS bundle output directory). This results in them not being able to be served by the static web assets mechanism that is enabled by default and is likely what should actually be made to work when this package is productized.
+
+Visual Studio doesn't show the linked *wwwroot* files at design-time in the Solution Explorer which is a bit confusing too. Statically linked files are usually shown fine though so this is likely something that could be fixed in Visual Studio.
+
+This approach precludes including the client library files in the project template, as once the npm build has been run, the linked file items will clash with the physical files in the same logical location. It's possible this could be resolved by updating the *ClientAssets* build targets to be resilient to npm not being available and the files to be linked already existing in the *wwwroot* directory, e.g. it could first delete them before linking the new files.
+
+Pros:
+
+- Simple to update client libraries to new versions via npm
+- Simple to add new client libraries via npm
+- Client library files automatically copied to project output when published
+- Simple to add other client asset build tools from the npm ecosystem, e.g. webpack, and have them contribute to the project output
+- Provides proper build integration for using the npm ecosystem in ASP.NET Core projects
+- npm configuration file & custom script can be easily deleted from project if undesired
+
+Cons:
+
+- Requires NodeJS/npm to get the client library files after project creation (possibly fixable, see notes above)
+- Requires NodeJS/npm to update or add client libraries
+- Visual Studio experience for npm is in an optional workload (Node Tools) and has some usability issues, e.g. the npm files are in a sub-directory of the project and thus the Visual Studio npm tooling doesn't seem to see them and activate itself, e.g. npm dependencies node in Solution Explorer
