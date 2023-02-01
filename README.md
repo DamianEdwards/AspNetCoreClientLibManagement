@@ -2,7 +2,7 @@
 
 ## What is this?
 
-Examples of different techniques for adding management of client libraries (i.e. JS/CSS libraries/frameworks) to ASP.NET Core projects. The default ASP.NET Core project templates include a number of client libraries (e.g. Bootstrap, jQuery) but the files are simply included in the wwwroot directory. There is no client library package manager configured to easily enable updating these libraries to new versions, etc.
+Examples of different techniques for adding management of client libraries (i.e. JS/CSS libraries/frameworks) to ASP.NET Core projects. The default ASP.NET Core project templates include a number of client libraries (e.g. Bootstrap, jQuery) but the files are simply included in the *wwwroot* directory. There is no client library package manager configured to easily enable updating these libraries to new versions, etc. In early versions of ASP.NET Core we included configuration for using the now deprecated [Bower](https://bower.io/), along with [Grunt](https://gruntjs.com/) and then [Gulp](https://gulpjs.com/), but we removed it all (before 1.0?).
 
 ## Pre-requisites
 
